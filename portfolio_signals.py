@@ -19,9 +19,8 @@ _client = None
 def get_mongo_client():
     global _client
     if _client is None:
-        uri = os.environ.get("MONGO_URI") or (
-            sys.argv[1] if len(sys.argv) > 1 else None
-        )
+        uri = sys.argv[1] if len(sys.argv) > 1 else None
+        
         if not uri:
             raise ValueError("MONGO_URI is not configured")
         _client = MongoClient(
