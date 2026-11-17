@@ -1,14 +1,14 @@
-
 import os
 import re
 import json
 import time
 import codecs
 import logging
+import subprocess
 
 from datetime import datetime, timezone
 from urllib.request import Request, urlopen
-from urllib.parse import urlparse, urlsplit, parse_qs
+from urllib.parse import urlsplit
 from html.parser import HTMLParser
 
 from flask import Flask, jsonify, request, Response, stream_with_context
@@ -33,13 +33,35 @@ logger = logging.getLogger(__name__)
 # CONFIGURATION
 # ==========================================================
 
-DEFAULT_URL = (
-    "https://www.screener.in/company/TATAGOLD/consolidated/"
-)
+DEFAULT_COMPANY_CODE = "TATAGOLD"
 
 DEFAULT_INTERVAL = 60
 MIN_INTERVAL = 5
 CHUNK_SIZE = 16 * 1024
+
+
+# ==========================================================
+# COMPANY CODE / URL
+# ==========================================================
+
+def get_screener_url(company_code):
+    """
+    Convert a company code such as TATAGOLD into its
+    Screener.in consolidated company URL.
+    """
+
+    if not company_code:
+        raise ValueError("Company code is required")
+
+    company_code = company_code.strip().upper()
+
+    if not re.fullmatch(r"[A-Z0-9_-]+", company_code):
+        raise ValueError("Invalid company code")
+
+    return (
+        f"https://www.screener.in/company/"
+        f"{company_code}/consolidated/"
+    )
 
 
 # ==========================================================
@@ -328,10 +350,13 @@ def screener_snapshot():
 
     try:
 
-        url = request.args.get(
-            "url",
-            DEFAULT_URL
+        company_code = request.args.get(
+            "company",
+            DEFAULT_COMPANY_CODE
         )
+
+        company_code = company_code.strip().upper()
+        url = get_screener_url(company_code)
 
         snapshot = to_snapshot(url)
 
@@ -339,6 +364,7 @@ def screener_snapshot():
 
             return jsonify({
                 "success": False,
+                "companyCode": company_code,
                 "message": (
                     "No price found. "
                     "The page layout may have changed "
@@ -349,6 +375,7 @@ def screener_snapshot():
 
         return jsonify({
             "success": True,
+            "companyCode": company_code,
             "data": snapshot
         })
 
@@ -425,21 +452,15 @@ def price_stream(url, every_sec):
 )
 def screener_stream():
 
-    url = request.args.get(
-        "url",
-        DEFAULT_URL
-    )
-
     try:
-        validate_url(url)
-    except ValueError as error:
 
-        return jsonify({
-            "success": False,
-            "message": str(error)
-        }), 400
+        company_code = request.args.get(
+            "company",
+            DEFAULT_COMPANY_CODE
+        )
 
-    try:
+        company_code = company_code.strip().upper()
+        url = get_screener_url(company_code)
 
         every_sec = max(
             MIN_INTERVAL,
@@ -449,11 +470,11 @@ def screener_stream():
             ))
         )
 
-    except (ValueError, TypeError):
+    except ValueError as error:
 
         return jsonify({
             "success": False,
-            "message": "Invalid polling interval"
+            "message": str(error)
         }), 400
 
     return Response(
@@ -480,8 +501,6 @@ def screener_stream():
     methods=["GET"]
 )
 def portfolio_signals():
-
-    import subprocess
 
     try:
 
