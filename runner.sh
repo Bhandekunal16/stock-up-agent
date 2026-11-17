@@ -8,4 +8,4 @@ if [ -f "venv/bin/activate" ]; then
     source venv/bin/activate
 fi
 
-python3 portfolio_signals.py "$1"
+python3 portfolio_signals.py mongodb+srv://bhandekunal16:SppcHRFdBS74An8v@cluster0.xxevqv7.mongodb.net
